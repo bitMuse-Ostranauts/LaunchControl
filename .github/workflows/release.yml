@@ -142,7 +142,8 @@ jobs:
           dotnet build LaunchControl.csproj \
             -c Release \
             -p:OstranautsPath="${GITHUB_WORKSPACE}/vendor/refs" \
-            -p:OutputPath="${GITHUB_WORKSPACE}/build/output/"
+            -p:OutputPath="${GITHUB_WORKSPACE}/build/output/" \
+            -p:GenerateTargetFrameworkAttribute=false
       
       - name: Create artifact structure
         run: |
