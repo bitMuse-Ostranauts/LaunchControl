@@ -299,7 +299,7 @@ namespace Ostranauts.Bit.Items.Categories
                 current = current.Parent;
             }
 
-            return string.Join(".", path);
+            return string.Join(".", path.ToArray());
         }
 
         /// <summary>
