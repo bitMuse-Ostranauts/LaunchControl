@@ -1,0 +1,118 @@
+name: Build and Release LaunchControl
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 1.0.0)'
+        required: true
+        default: ''
+      reference_assemblies:
+        description: 'Reference assemblies filename from http://files.bitmuse.me/ (e.g., assemblies-v1.2.3.tar.gz.enc)'
+        required: true
+        default: ''
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "1.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+      
+      - name: Parse manifest for game version
+        id: parse_manifest
+        run: |
+          GAME_VERSION=$(jq -r '.game_version_number' manifest.json)
+          echo "game_version=$GAME_VERSION" >> $GITHUB_OUTPUT
+          echo "default_assemblies=assemblies-v${GAME_VERSION}.tar.gz.enc" >> $GITHUB_OUTPUT
+      
+      - name: Set version and assemblies
+        id: set_vars
+        run: |
+          if [ -z "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ steps.get_tag.outputs.latest_tag }}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
+          
+          if [ -z "${{ github.event.inputs.reference_assemblies }}" ]; then
+            ASSEMBLIES="${{ steps.parse_manifest.outputs.default_assemblies }}"
+          else
+            ASSEMBLIES="${{ github.event.inputs.reference_assemblies }}"
+          fi
+          
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "assemblies=$ASSEMBLIES" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+          echo "Using assemblies: $ASSEMBLIES"
+      
+      - name: Download reference assemblies
+        run: |
+          curl -o reference-assemblies.tar.gz.enc \
+            "http://files.bitmuse.me/${{ steps.set_vars.outputs.assemblies }}"
+      
+      - name: Decrypt archive
+        env:
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+        run: |
+          openssl enc -d -aes-256-cbc -pbkdf2 \
+            -in reference-assemblies.tar.gz.enc \
+            -out reference-assemblies.tar.gz \
+            -pass env:ENCRYPTION_KEY
+      
+      - name: Extract reference assemblies
+        run: |
+          mkdir -p vendor/refs
+          tar -xzf reference-assemblies.tar.gz -C vendor/refs
+          echo "Contents of vendor/refs:"
+          ls -la vendor/refs/
+      
+      - name: Update manifest.json version
+        run: |
+          jq '.version_number = "${{ steps.set_vars.outputs.version }}"' manifest.json > manifest.json.tmp
+          mv manifest.json.tmp manifest.json
+          cat manifest.json
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      
+      - name: Build project
+        run: |
+          # Build with reference assemblies from vendor/refs
+          dotnet build LaunchControl.csproj \
+            -c Release \
+            -p:OstranautsPath="${GITHUB_WORKSPACE}/vendor/refs" \
+            -p:OutputPath="${GITHUB_WORKSPACE}/build/output/"
+      
+      - name: Create artifact structure
+        run: |
+          mkdir -p artifact/plugins/LaunchControl
+          cp build/output/LaunchControl.dll artifact/plugins/LaunchControl/
+          cp manifest.json artifact/plugins/LaunchControl/
+          echo "Artifact contents:"
+          ls -R artifact/
+      
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LaunchControl-${{ steps.set_vars.outputs.version }}
+          path: artifact/plugins/
+      
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "v${{ steps.set_vars.outputs.version }}" -m "Release v${{ steps.set_vars.outputs.version }}"
+          git push origin "v${{ steps.set_vars.outputs.version }}"
+
