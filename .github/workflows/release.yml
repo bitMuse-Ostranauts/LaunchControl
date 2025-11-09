@@ -55,6 +55,24 @@ jobs:
           echo "Building version: $VERSION"
           echo "Using assemblies: $ASSEMBLIES"
       
+      - name: Download BepInEx from Thunderstore
+        run: |
+          # Download BepInEx 5.4.23.3 for Ostranauts
+          curl -L -o bepinex.zip \
+            "https://thunderstore.io/package/download/BepInEx/BepInExPack_Ostranauts/5.4.2303/"
+          
+          # Extract BepInEx
+          unzip -q bepinex.zip -d bepinex_temp
+          
+          # Create BepInEx directory structure
+          mkdir -p vendor/refs/BepInEx/core
+          
+          # Copy BepInEx assemblies to the correct location
+          cp bepinex_temp/BepInExPack/BepInEx/core/*.dll vendor/refs/BepInEx/core/
+          
+          echo "BepInEx assemblies installed:"
+          ls -la vendor/refs/BepInEx/core/
+      
       - name: Download reference assemblies
         run: |
           curl -o reference-assemblies.tar.gz.enc \
@@ -69,12 +87,12 @@ jobs:
             -out reference-assemblies.tar.gz \
             -pass env:ENCRYPTION_KEY
       
-      - name: Extract reference assemblies
+      - name: Extract game assemblies
         run: |
-          mkdir -p vendor/refs
-          tar -xzf reference-assemblies.tar.gz -C vendor/refs
-          echo "Contents of vendor/refs:"
-          ls -la vendor/refs/
+          mkdir -p vendor/refs/extracted
+          tar -xzf reference-assemblies.tar.gz -C vendor/refs/extracted
+          echo "Extracted game assemblies:"
+          find vendor/refs/extracted -type f -name "*.dll" | head -20
       
       - name: Update manifest.json version
         run: |
@@ -86,6 +104,37 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+      
+      - name: Organize game assemblies
+        run: |
+          # Find where the game DLLs were extracted
+          MANAGED_DIR=$(find vendor/refs/extracted -name "Assembly-CSharp.dll" -exec dirname {} \; | head -1)
+          
+          if [ -z "$MANAGED_DIR" ]; then
+            echo "ERROR: Could not find Assembly-CSharp.dll in extracted files"
+            echo "Searching for DLL files in extracted archive:"
+            find vendor/refs/extracted -name "*.dll" | head -20
+            exit 1
+          fi
+          
+          echo "Found game assemblies in: $MANAGED_DIR"
+          
+          # Create proper directory structure for game assemblies
+          mkdir -p vendor/refs/Ostranauts_Data/Managed
+          
+          # Copy all game and Unity assemblies
+          cp "$MANAGED_DIR"/*.dll vendor/refs/Ostranauts_Data/Managed/
+          
+          echo "Game assemblies installed:"
+          ls -la vendor/refs/Ostranauts_Data/Managed/ | head -20
+          
+          echo ""
+          echo "Complete reference structure:"
+          echo "BepInEx:"
+          ls -la vendor/refs/BepInEx/core/
+          echo ""
+          echo "Game/Unity (first 10):"
+          ls vendor/refs/Ostranauts_Data/Managed/ | head -10
       
       - name: Build project
         run: |
