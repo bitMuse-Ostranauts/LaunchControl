@@ -66,23 +66,7 @@ runs:
           exit 0
         fi
 
-        export VERSION
-        export TOML_PATH
-        python - <<'PY'
-import os
-import re
-from pathlib import Path
-
-toml_path = Path(os.environ["TOML_PATH"])
-version = os.environ["VERSION"]
-
-text = toml_path.read_text(encoding="utf-8")
-pattern = r'(versionNumber\s*=\s*")([^"]*)(")'
-if not re.search(pattern, text):
-    raise SystemExit(f"versionNumber key not found in {toml_path}")
-
-updated = re.sub(pattern, rf'\1{version}\3', text, count=1)
-toml_path.write_text(updated, encoding="utf-8")
-print(f"Updated {toml_path} versionNumber to {version}")
-PY
+        # Update versionNumber in thunderstore.toml using sed
+        sed -i "s/versionNumber = \"[^\"]*\"/versionNumber = \"${VERSION}\"/" "${TOML_PATH}"
+        echo "Updated ${TOML_PATH} versionNumber to ${VERSION}"
 

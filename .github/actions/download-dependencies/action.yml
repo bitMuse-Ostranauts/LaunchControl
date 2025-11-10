@@ -13,27 +13,15 @@ runs:
     - name: Download and extract dependencies
       shell: bash
       run: |
-        # Parse dependencies from thunderstore.toml using Python
-        DEPENDENCIES=$(python - <<'PY'
-import re
-from pathlib import Path
-
-toml_path = Path("${{ inputs.thunderstore_path }}")
-text = toml_path.read_text(encoding="utf-8")
-
-# Find [package.dependencies] section
-deps_match = re.search(r'\[package\.dependencies\](.*?)(?=\n\[|\Z)', text, re.DOTALL)
-if deps_match:
-    deps_section = deps_match.group(1)
-    # Parse lines like: Namespace-ModName = "version"
-    for line in deps_section.strip().split('\n'):
-        line = line.strip()
-        if '=' in line and not line.startswith('#'):
-            dep_name = line.split('=')[0].strip()
-            dep_version = line.split('=')[1].strip().strip('"')
-            print(f"{dep_name}-{dep_version}")
-PY
-)
+        # Parse dependencies from thunderstore.toml
+        # Extract lines between [package.dependencies] and next section
+        DEPENDENCIES=$(awk '/\[package\.dependencies\]/,/^\[/ {
+          if ($0 ~ /=/ && $0 !~ /^\[/ && $0 !~ /^#/) {
+            gsub(/[ \t]*=[ \t]*/, "-")
+            gsub(/"/, "")
+            print
+          }
+        }' "${{ inputs.thunderstore_path }}")
         
         echo "Installing dependencies from Thunderstore..."
         
