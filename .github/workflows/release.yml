@@ -1,4 +1,4 @@
-name: Build and Release LaunchControl
+name: Build and Release
 
 on:
   workflow_dispatch:
@@ -18,6 +18,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PLUGIN_NAME: LaunchControl
+      PROJECT_FILE: LaunchControl.csproj
+      OUTPUT_DLL: LaunchControl.dll
     
     steps:
       - name: Checkout code
@@ -26,190 +30,54 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Get latest tag
-        id: get_tag
-        run: |
-          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "1.0.0")
-          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
-      
-      - name: Parse manifest for game version
-        id: parse_manifest
-        run: |
-          GAME_VERSION=$(jq -r '.game_version_number' manifest.json)
-          echo "game_version=$GAME_VERSION" >> $GITHUB_OUTPUT
-          echo "default_assemblies=assemblies-v${GAME_VERSION}.tar.gz.enc" >> $GITHUB_OUTPUT
-      
-      - name: Set version and assemblies
-        id: set_vars
-        run: |
-          if [ -z "${{ github.event.inputs.version }}" ]; then
-            VERSION="${{ steps.get_tag.outputs.latest_tag }}"
-          else
-            VERSION="${{ github.event.inputs.version }}"
-          fi
-          
-          if [ -z "${{ github.event.inputs.reference_assemblies }}" ]; then
-            ASSEMBLIES="${{ steps.parse_manifest.outputs.default_assemblies }}"
-          else
-            ASSEMBLIES="${{ github.event.inputs.reference_assemblies }}"
-          fi
-          
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "assemblies=$ASSEMBLIES" >> $GITHUB_OUTPUT
-          echo "Building version: $VERSION"
-          echo "Using assemblies: $ASSEMBLIES"
-      
-      - name: Download dependencies from Thunderstore
-        run: |
-          # Parse dependencies from manifest.json
-          DEPENDENCIES=$(jq -r '.dependencies[]' manifest.json)
-          
-          echo "Installing dependencies from Thunderstore..."
-          
-          # Process each dependency
-          for dep in $DEPENDENCIES; do
-            # Parse dependency string: Namespace-ModName-Version
-            NAMESPACE=$(echo $dep | cut -d'-' -f1)
-            MODNAME=$(echo $dep | cut -d'-' -f2)
-            VERSION=$(echo $dep | cut -d'-' -f3)
-            
-            echo ""
-            echo "Downloading: $NAMESPACE/$MODNAME v$VERSION"
-            
-            # Download from Thunderstore
-            curl -L -o "${MODNAME}.zip" \
-              "https://thunderstore.io/package/download/${NAMESPACE}/${MODNAME}/${VERSION}/"
-            
-            # Extract to temp directory
-            unzip -q "${MODNAME}.zip" -d "temp_${MODNAME}"
-            
-            echo "Contents of temp_${MODNAME}:"
-            ls -la "temp_${MODNAME}/" || true
-          done
-          
-          # Create vendor directory structure for references
-          mkdir -p vendor/refs/BepInEx/core
-          
-          # Copy BepInEx assemblies (if present)
-          if [ -d "temp_BepInExPack_Ostranauts/BepInExPack/BepInEx/core" ]; then
-            cp temp_BepInExPack_Ostranauts/BepInExPack/BepInEx/core/*.dll vendor/refs/BepInEx/core/
-            echo "BepInEx assemblies installed:"
-            ls -la vendor/refs/BepInEx/core/
-          fi
-          
-          # Copy any other mod DLLs to a plugins reference directory
-          mkdir -p vendor/refs/plugins
-          for dep in $DEPENDENCIES; do
-            MODNAME=$(echo $dep | cut -d'-' -f2)
-            # Look for DLL files in common locations
-            find "temp_${MODNAME}" -name "*.dll" -type f -exec cp {} vendor/refs/plugins/ \; 2>/dev/null || true
-          done
-          
-          if [ -d "vendor/refs/plugins" ] && [ "$(ls -A vendor/refs/plugins)" ]; then
-            echo ""
-            echo "Plugin dependencies installed:"
-            ls -la vendor/refs/plugins/
-          fi
-      
-      - name: Download reference assemblies
-        run: |
-          curl -o reference-assemblies.tar.gz.enc \
-            "http://files.bitmuse.me/${{ steps.set_vars.outputs.assemblies }}"
-      
-      - name: Decrypt archive
-        env:
-          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
-        run: |
-          openssl enc -d -aes-256-cbc -pbkdf2 \
-            -in reference-assemblies.tar.gz.enc \
-            -out reference-assemblies.tar.gz \
-            -pass env:ENCRYPTION_KEY
-      
-      - name: Extract game assemblies
-        run: |
-          mkdir -p vendor/refs/extracted
-          tar -xzf reference-assemblies.tar.gz -C vendor/refs/extracted
-          echo "Extracted game assemblies:"
-          find vendor/refs/extracted -type f -name "*.dll" | head -20
-      
-      - name: Update manifest.json version
-        run: |
-          jq '.version_number = "${{ steps.set_vars.outputs.version }}"' manifest.json > manifest.json.tmp
-          mv manifest.json.tmp manifest.json
-          cat manifest.json
-      
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup version and variables
+        id: setup
+        uses: ./.github/actions/setup-version
         with:
-          dotnet-version: '8.0.x'
+          input_version: ${{ github.event.inputs.version }}
+          input_assemblies: ${{ github.event.inputs.reference_assemblies }}
+          thunderstore_path: thunderstore.toml
       
-      - name: Organize game assemblies
-        run: |
-          # Find where the game DLLs were extracted
-          MANAGED_DIR=$(find vendor/refs/extracted -name "Assembly-CSharp.dll" -exec dirname {} \; | head -1)
-          
-          if [ -z "$MANAGED_DIR" ]; then
-            echo "ERROR: Could not find Assembly-CSharp.dll in extracted files"
-            echo "Searching for DLL files in extracted archive:"
-            find vendor/refs/extracted -name "*.dll" | head -20
-            exit 1
-          fi
-          
-          echo "Found game assemblies in: $MANAGED_DIR"
-          
-          # Create proper directory structure for game assemblies
-          mkdir -p vendor/refs/Ostranauts_Data/Managed
-          
-          # Copy all game and Unity assemblies
-          cp "$MANAGED_DIR"/*.dll vendor/refs/Ostranauts_Data/Managed/
-          
-          echo "Game assemblies installed:"
-          ls -la vendor/refs/Ostranauts_Data/Managed/ | head -20
-          
-          echo ""
-          echo "Complete reference structure:"
-          echo "BepInEx:"
-          ls -la vendor/refs/BepInEx/core/
-          echo ""
-          echo "Game/Unity (first 10):"
-          ls vendor/refs/Ostranauts_Data/Managed/ | head -10
-      
-      - name: Build project
-        run: |
-          # Build with reference assemblies from vendor/refs
-          dotnet build LaunchControl.csproj \
-            -c Release \
-            -p:OstranautsPath="${GITHUB_WORKSPACE}/vendor/refs" \
-            -p:OutputPath="${GITHUB_WORKSPACE}/build/output/" \
-            -p:GenerateTargetFrameworkAttribute=false
-      
-      - name: Create artifact structure
-        run: |
-          mkdir -p artifact/plugins/LaunchControl
-          cp build/output/LaunchControl.dll artifact/plugins/LaunchControl/
-          cp manifest.json artifact/
-          cp icon.png artifact/
-          cp README.md artifact/
-          echo "Artifact contents:"
-          ls -R artifact/
-      
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+      - name: Download Thunderstore dependencies
+        uses: ./.github/actions/download-dependencies
         with:
-          name: LaunchControl-${{ steps.set_vars.outputs.version }}
-          path: artifact/
+          thunderstore_path: thunderstore.toml
       
-      - name: Commit version update and create tag
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Commit the manifest.json version update
-          git add manifest.json
-          git commit -m "Release v${{ steps.set_vars.outputs.version }}"
-          
-          # Create and push tag
-          git tag -a "v${{ steps.set_vars.outputs.version }}" -m "Release v${{ steps.set_vars.outputs.version }}"
-          git push origin HEAD:${{ github.ref }}
-          git push origin "v${{ steps.set_vars.outputs.version }}"
+      - name: Download and decrypt reference assemblies
+        uses: ./.github/actions/download-assemblies
+        with:
+          assemblies_filename: ${{ steps.setup.outputs.assemblies }}
+          encryption_key: ${{ secrets.ENCRYPTION_KEY }}
+      
+      - name: Build plugin
+        uses: ./.github/actions/build-plugin
+        with:
+          project_file: ${{ env.PROJECT_FILE }}
+          output_dll: ${{ env.OUTPUT_DLL }}
+          plugin_name: ${{ env.PLUGIN_NAME }}
+      
+      - name: Install Thunderstore CLI
+        uses: ./.github/actions/install-tcli
 
+      - name: Package Thunderstore artifact
+        id: thunderstore_package
+        uses: ./.github/actions/package-thunderstore
+        with:
+          config_path: thunderstore.toml
+          version: ${{ steps.setup.outputs.version }}
+
+      - name: Publish to Thunderstore
+        if: ${{ github.event_name == 'workflow_dispatch' && secrets.THUNDERSTORE_TOKEN != '' }}
+        uses: ./.github/actions/publish-thunderstore
+        with:
+          config_path: thunderstore.toml
+          version: ${{ steps.setup.outputs.version }}
+          package_path: ${{ steps.thunderstore_package.outputs.package_path }}
+          token: ${{ secrets.THUNDERSTORE_TOKEN }}
+
+      - name: Create release
+        uses: ./.github/actions/create-release
+        with:
+          version: ${{ steps.setup.outputs.version }}
+          plugin_name: ${{ env.PLUGIN_NAME }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}

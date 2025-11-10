@@ -10,26 +10,31 @@
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <NoWarn>MSB3245</NoWarn>
     
-    <!-- Ostranauts installation directory -->
+    <!-- Ostranauts installation directory - tries common Steam locations -->
+    <OstranautsPath Condition="'$(OstranautsPath)' == '' AND Exists('D:\Steam\steamapps\common\Ostranauts')">D:\Steam\steamapps\common\Ostranauts</OstranautsPath>
+    <OstranautsPath Condition="'$(OstranautsPath)' == '' AND Exists('C:\Steam\steamapps\common\Ostranauts')">C:\Steam\steamapps\common\Ostranauts</OstranautsPath>
+    <OstranautsPath Condition="'$(OstranautsPath)' == '' AND Exists('C:\Program Files (x86)\Steam\steamapps\common\Ostranauts')">C:\Program Files (x86)\Steam\steamapps\common\Ostranauts</OstranautsPath>
+    <OstranautsPath Condition="'$(OstranautsPath)' == '' AND Exists('$(USERPROFILE)\.steam\steam\steamapps\common\Ostranauts')">$(USERPROFILE)\.steam\steam\steamapps\common\Ostranauts</OstranautsPath>
     <OstranautsPath Condition="'$(OstranautsPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Ostranauts</OstranautsPath>
     <GameManagedPath>$(OstranautsPath)\Ostranauts_Data\Managed</GameManagedPath>
-    <BepInExPath>$(OstranautsPath)\BepInEx</BepInExPath>
     
     <!-- Output to BepInEx plugins folder -->
     <OutputPath>$(BepInExPath)\plugins\LaunchControl\</OutputPath>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- BepInEx References -->
-    <Reference Include="BepInEx">
-      <HintPath>$(BepInExPath)\core\BepInEx.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="0Harmony">
-      <HintPath>$(BepInExPath)\core\0Harmony.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
+    <!-- BepInEx and HarmonyX from NuGet -->
+    <PackageReference Include="BepInEx.Core" Version="5.*">
+      <IncludeAssets>compile</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="HarmonyX" Version="2.15.0">
+      <IncludeAssets>compile</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
 
+  <ItemGroup>
     <!-- Ostranauts Game Assembly -->
     <Reference Include="Assembly-CSharp">
       <HintPath>$(GameManagedPath)\Assembly-CSharp.dll</HintPath>
