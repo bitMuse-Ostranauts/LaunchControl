@@ -67,7 +67,7 @@ jobs:
           version: ${{ steps.setup.outputs.version }}
 
       - name: Publish to Thunderstore
-        if: ${{ github.event_name == 'workflow_dispatch' && secrets.THUNDERSTORE_TOKEN != '' }}
+        if: ${{ secrets.THUNDERSTORE_TOKEN != '' }}
         uses: ./.github/actions/publish-thunderstore
         with:
           config_path: thunderstore.toml
