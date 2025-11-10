@@ -67,7 +67,6 @@ jobs:
           version: ${{ steps.setup.outputs.version }}
 
       - name: Publish to Thunderstore
-        if: ${{ secrets.THUNDERSTORE_TOKEN != '' }}
         uses: ./.github/actions/publish-thunderstore
         with:
           config_path: thunderstore.toml
