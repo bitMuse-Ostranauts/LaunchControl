@@ -187,7 +187,9 @@ jobs:
         run: |
           mkdir -p artifact/plugins/LaunchControl
           cp build/output/LaunchControl.dll artifact/plugins/LaunchControl/
-          cp manifest.json artifact/plugins/LaunchControl/
+          cp manifest.json artifact/
+          cp icon.png artifact/
+          cp README.md artifact/
           echo "Artifact contents:"
           ls -R artifact/
       
