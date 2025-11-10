@@ -197,7 +197,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: LaunchControl-${{ steps.set_vars.outputs.version }}
-          path: artifact/plugins/
+          path: artifact/
       
       - name: Commit version update and create tag
         run: |
