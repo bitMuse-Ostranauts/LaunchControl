@@ -48,3 +48,4 @@ runs:
         echo "package_path=${PACKAGE_PATH}" >> "$GITHUB_OUTPUT"
         echo "Thunderstore package created at: ${PACKAGE_PATH}"
 
+
