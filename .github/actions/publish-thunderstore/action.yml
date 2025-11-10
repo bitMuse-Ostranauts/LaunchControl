@@ -27,7 +27,6 @@ runs:
         set -euo pipefail
         tcli publish \
           --config-path "${{ inputs.config_path }}" \
-          --package-version "${{ inputs.version }}" \
           --file "${{ inputs.package_path }}" \
           --token "${TCLI_TOKEN}"
 
