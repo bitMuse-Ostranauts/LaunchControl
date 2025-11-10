@@ -15,29 +15,37 @@ runs:
       run: |
         # Parse dependencies from thunderstore.toml
         # Extract lines between [package.dependencies] and next section
-        DEPENDENCIES=$(awk '/\[package\.dependencies\]/,/^\[/ {
-          if ($0 ~ /=/ && $0 !~ /^\[/ && $0 !~ /^#/) {
-            gsub(/[ \t]*=[ \t]*/, "-")
+        # Format: "Namespace-PackageName = \"version\"" -> "Namespace-PackageName-version"
+        DEPENDENCIES=$(awk '
+          BEGIN { in_deps = 0 }
+          /^\[package\.dependencies\]/ { in_deps = 1; next }
+          /^\[/ && in_deps { in_deps = 0 }
+          in_deps && /=/ && !/^#/ {
+            gsub(/[ \t]/, "")
             gsub(/"/, "")
+            gsub(/=/, "-")
             print
           }
-        }' "${{ inputs.thunderstore_path }}")
+        ' "${{ inputs.thunderstore_path }}")
         
         echo "Installing dependencies from Thunderstore..."
         
         # Process each dependency
         for dep in $DEPENDENCIES; do
           # Parse dependency string: Namespace-ModName-Version
+          # Note: ModName can contain underscores, but Version is always last after final dash
           NAMESPACE=$(echo $dep | cut -d'-' -f1)
-          MODNAME=$(echo $dep | cut -d'-' -f2)
-          VERSION=$(echo $dep | cut -d'-' -f3)
+          # Get everything after first dash, then split at last dash to separate modname and version
+          TEMP=$(echo $dep | cut -d'-' -f2-)
+          VERSION=$(echo $TEMP | rev | cut -d'-' -f1 | rev)
+          MODNAME=$(echo $TEMP | rev | cut -d'-' -f2- | rev)
           
           echo ""
           echo "Downloading: $NAMESPACE/$MODNAME v$VERSION"
           
-          # Download from Thunderstore (Ostranauts community)
+          # Download from Thunderstore
           curl -L -o "${MODNAME}.zip" \
-            "https://thunderstore.io/c/ostranauts/p/${NAMESPACE}/${MODNAME}/${VERSION}/download/"
+            "https://thunderstore.io/package/download/${NAMESPACE}/${MODNAME}/${VERSION}/"
           
           # Extract to temp directory
           unzip -q "${MODNAME}.zip" -d "temp_${MODNAME}"
