@@ -5,12 +5,12 @@ on:
     inputs:
       version:
         description: 'Version number (e.g., 1.0.0)'
-        required: true
+        required: false
         default: ''
       reference_assemblies:
         description: 'Reference assemblies filename from http://files.bitmuse.me/ (e.g., assemblies-v1.2.3.tar.gz.enc)'
         required: true
-        default: ''
+        default: 'assemblies-v0.14.5.17.tar.gz.enc'
 
 permissions:
   contents: write
