@@ -17,24 +17,27 @@
     <OstranautsPath Condition="'$(OstranautsPath)' == '' AND Exists('$(USERPROFILE)\.steam\steam\steamapps\common\Ostranauts')">$(USERPROFILE)\.steam\steam\steamapps\common\Ostranauts</OstranautsPath>
     <OstranautsPath Condition="'$(OstranautsPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Ostranauts</OstranautsPath>
     <GameManagedPath>$(OstranautsPath)\Ostranauts_Data\Managed</GameManagedPath>
+    <BepInExPath>$(OstranautsPath)\BepInEx</BepInExPath>
     
     <!-- Output to BepInEx plugins folder -->
     <OutputPath>$(BepInExPath)\plugins\LaunchControl\</OutputPath>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- BepInEx and HarmonyX from NuGet -->
+    <!-- BepInEx and Harmony from NuGet -->
     <PackageReference Include="BepInEx.Core" Version="5.*">
-      <IncludeAssets>compile</IncludeAssets>
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
-    <PackageReference Include="HarmonyX" Version="2.15.0">
       <IncludeAssets>compile</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Harmony from BepInEx installation -->
+    <Reference Include="0Harmony">
+      <HintPath>$(BepInExPath)\core\0Harmony.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+
     <!-- Ostranauts Game Assembly -->
     <Reference Include="Assembly-CSharp">
       <HintPath>$(GameManagedPath)\Assembly-CSharp.dll</HintPath>
