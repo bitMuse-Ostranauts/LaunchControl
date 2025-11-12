@@ -36,6 +36,13 @@ namespace Ostranauts.Bit
         private TaskDataProvider _taskDataProvider;
 
         private PatchSystem.PatchManager _patchManager;
+
+        /// <summary>
+        /// Event fired when the game has finished loading all ships and is ready for the player.
+        /// This occurs after loading is complete but before the game unpauses.
+        /// Mods can subscribe to this to perform initialization tasks on existing saves.
+        /// </summary>
+        public static event Action OnGameReady;
         
         /// <summary>
         /// Item manager instance
@@ -181,7 +188,28 @@ namespace Ostranauts.Bit
                 LaunchControlPlugin.Logger.LogError(ex.StackTrace);
             }
             
+            // Subscribe to game load complete event
+            try
+            {
+                CrewSim.OnGameFinishedLoading.AddListener(OnCrewSimGameFinishedLoading);
+                LaunchControlPlugin.Logger.LogInfo("Subscribed to game load complete event");
+            }
+            catch (System.Exception ex)
+            {
+                LaunchControlPlugin.Logger.LogError($"Failed to subscribe to game load event: {ex.Message}");
+                LaunchControlPlugin.Logger.LogError(ex.StackTrace);
+            }
+            
             LaunchControlPlugin.Logger.LogInfo("LaunchControl instance initialized");
+        }
+
+        /// <summary>
+        /// Called when CrewSim finishes loading the game
+        /// </summary>
+        private void OnCrewSimGameFinishedLoading()
+        {
+            LaunchControlPlugin.Logger.LogInfo("Game finished loading - firing OnGameReady event");
+            OnGameReady?.Invoke();
         }
 
         /// <summary>
@@ -238,6 +266,12 @@ namespace Ostranauts.Bit
 
         private void OnDestroy()
         {
+            // Unsubscribe from game load complete event
+            if (CrewSim.OnGameFinishedLoading != null)
+            {
+                CrewSim.OnGameFinishedLoading.RemoveListener(OnCrewSimGameFinishedLoading);
+            }
+            
             // Cleanup the persistent data load listener
             PersistentDataPatches.CleanupLoadListener();
         }
