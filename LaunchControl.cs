@@ -8,6 +8,7 @@ using Ostranauts.Bit.Patches;
 using Ostranauts.Bit.Interactions;
 using Ostranauts.Bit.Pledges;
 using Ostranauts.Bit.Tasks;
+using Ostranauts.Bit.PatchSystem;
 using Ostranauts.UI.MegaToolTip.Interfaces;
 using UnityEngine;
 
@@ -33,6 +34,8 @@ namespace Ostranauts.Bit
         private PledgeManager _pledgeManager;
 
         private TaskDataProvider _taskDataProvider;
+
+        private PatchSystem.PatchManager _patchManager;
         
         /// <summary>
         /// Item manager instance
@@ -99,6 +102,14 @@ namespace Ostranauts.Bit
             get { return _taskDataProvider; }
         }
 
+        /// <summary>
+        /// Patch manager instance for applying JSON patches to game data
+        /// </summary>
+        public PatchSystem.PatchManager PatchManager
+        {
+            get { return _patchManager; }
+        }
+
         private void Awake()
         {
             if (_instance != null && _instance != this)
@@ -155,6 +166,18 @@ namespace Ostranauts.Bit
             catch (System.Exception ex)
             {
                 LaunchControlPlugin.Logger.LogError($"Failed to initialize Task data system: {ex.Message}");
+                LaunchControlPlugin.Logger.LogError(ex.StackTrace);
+            }
+
+            // Initialize PatchManager
+            try
+            {
+                _patchManager = new PatchSystem.PatchManager(LaunchControlPlugin.Logger);
+                LaunchControlPlugin.Logger.LogInfo("Patch system initialized");
+            }
+            catch (System.Exception ex)
+            {
+                LaunchControlPlugin.Logger.LogError($"Failed to initialize Patch system: {ex.Message}");
                 LaunchControlPlugin.Logger.LogError(ex.StackTrace);
             }
             
