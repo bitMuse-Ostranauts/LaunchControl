@@ -106,9 +106,6 @@ namespace Ostranauts.Bit
 
         private void RegisterBuiltInCommands()
         {
-            // DumpUI command will register itself when its MonoBehaviour starts
-            _launchControlObject.AddComponent<Commands.DumpUICommand>();
-
             // ListSprites command for discovering available sprites
             _launchControlObject.AddComponent<Commands.ListSpritesCommand>();
 
