@@ -7,10 +7,13 @@ namespace Ostranauts.Bit.Patches
     /// <summary>
     /// Harmony patch to track mod loads and apply patches after all data is loaded.
     /// We queue mods during LoadMod calls, then process all patches when LoadComplete fires.
+    /// Note: This only runs for vanilla async loading. FFU's sync loading is handled by DataHandlerInitPatch.
     /// </summary>
     [HarmonyPatch(typeof(DataHandler), "LoadMod")]
     public static class DataHandlerPatch
     {
+        private static bool _ffuDetected = false;
+
         /// <summary>
         /// Postfix patch that runs after DataHandler.LoadMod completes.
         /// This queues mods for patching after data is fully loaded.
@@ -22,6 +25,21 @@ namespace Ostranauts.Bit.Patches
             {
                 // Check if LaunchControl is initialized and has a patch manager
                 if (LaunchControl.Instance == null || LaunchControl.Instance.PatchManager == null)
+                {
+                    return;
+                }
+
+                // Detect if this is the first LoadMod call after FFU sync loading
+                // If bInitialised is already true during LoadMod, it means FFU did sync loading
+                if (!_ffuDetected && DataHandler.bInitialised && DataHandler.dictModInfos != null && DataHandler.dictModInfos.Count > 1)
+                {
+                    _ffuDetected = true;
+                    LaunchControlPlugin.Logger.LogInfo("FFU detected via LoadMod check - skipping vanilla patch system");
+                    return;
+                }
+
+                // Skip if FFU was detected
+                if (_ffuDetected)
                 {
                     return;
                 }
